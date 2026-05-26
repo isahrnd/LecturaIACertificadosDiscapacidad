@@ -282,11 +282,11 @@ class HTMLExportService:
             for item in tasks.operativo_manual_liviano
         )
         items.extend(f"Relacional / apoyo: {item}" for item in tasks.relacional_apoyo)
-        return items or ["Sin informacion."]
+        return items or ["Sin información."]
 
     def _capabilities_items(self, analysis: CertificateAnalysisSchema) -> list[str]:
         recommended = self._recommended_items(analysis)
-        if recommended and recommended != ["Sin informacion."]:
+        if recommended and recommended != ["Sin información."]:
             return [
                 "Capacidad para desempeñarse en tareas consistentes con las recomendaciones del análisis.",
                 *recommended,

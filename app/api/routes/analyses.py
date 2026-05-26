@@ -56,6 +56,7 @@ async def upload_certificate(
 async def analyze_certificate(
     file: UploadFile = File(...),
     form_file: UploadFile | None = File(default=None),
+    clinical_file: UploadFile | None = File(default=None),
     observations: str | None = Form(default=None),
     file_service: FileService = Depends(get_file_service),
     pipeline: CertificateAnalysisPipeline = Depends(get_pipeline),
@@ -65,10 +66,14 @@ async def analyze_certificate(
     form_payload = None
     if form_file is not None:
         form_payload = await file_service.read_and_validate(form_file)
+    clinical_payload = None
+    if clinical_file is not None:
+        clinical_payload = await file_service.read_and_validate(clinical_file)
 
     analysis = await pipeline.analyze(
         payload,
         form_payload=form_payload,
+        clinical_payload=clinical_payload,
         observations=observations,
     )
     record = storage.create(

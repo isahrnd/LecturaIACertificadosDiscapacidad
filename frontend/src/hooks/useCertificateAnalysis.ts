@@ -21,6 +21,7 @@ export function useCertificateAnalysis() {
         file: File | null,
         formFile?: File | null,
         observations?: string,
+        clinicalFile?: File | null,
       ) {
         const validationError = validateCertificateFile(file);
         if (validationError) {
@@ -38,6 +39,15 @@ export function useCertificateAnalysis() {
           return;
         }
 
+        const clinicalValidationError = validateOptionalSupportingFile(
+          clinicalFile ?? null,
+        );
+        if (clinicalValidationError) {
+          setState("error");
+          setError(clinicalValidationError);
+          return;
+        }
+
         setState("loading");
         setError(null);
 
@@ -45,6 +55,7 @@ export function useCertificateAnalysis() {
           const analysisResult = await analyzeCertificate({
             file: file!,
             formFile,
+            clinicalFile,
             observations,
           });
           setResult(analysisResult);

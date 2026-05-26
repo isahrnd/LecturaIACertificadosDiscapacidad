@@ -13,21 +13,21 @@ export function RecommendedTasksPanel({
       title: "Administrativo / oficina",
       items: toDisplayList(
         tasks.administrativo_oficina,
-        "No se identificaron tareas administrativas especificas.",
+        "No se identificaron tareas administrativas específicas.",
       ),
     },
     {
       title: "Operativo / manual liviano",
       items: toDisplayList(
         tasks.operativo_manual_liviano,
-        "No se identificaron tareas operativas livianas especificas.",
+        "No se identificaron tareas operativas livianas específicas.",
       ),
     },
     {
       title: "Relacional / apoyo",
       items: toDisplayList(
         tasks.relacional_apoyo,
-        "No se identificaron tareas de apoyo relacional especificas.",
+        "No se identificaron tareas de apoyo relacional específicas.",
       ),
     },
   ];

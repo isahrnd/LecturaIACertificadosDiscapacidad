@@ -4,7 +4,6 @@ import { ProfileHeaderCard } from "./ProfileHeaderCard";
 import { RecommendedTasksPanel } from "./RecommendedTasksPanel";
 import { AdjustmentsPanel } from "./AdjustmentsPanel";
 import { NotRecommendedPanel } from "./NotRecommendedPanel";
-import { FunctioningProfilePanel } from "./FunctioningProfilePanel";
 import { HrRecommendationsPanel } from "./HrRecommendationsPanel";
 import { downloadCompanyReportPdf } from "../lib/api";
 
@@ -43,7 +42,7 @@ export function AnalysisDashboard({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-almia-700/60">
-            Resultado del analisis
+            Resultado del análisis
           </p>
           <h2 className="mt-1 text-2xl font-extrabold tracking-tight text-ink">
             Resumen laboral del certificado
@@ -84,10 +83,7 @@ export function AnalysisDashboard({
 
       <NotRecommendedPanel items={analysis.analisis.tareas_no_recomendadas} />
 
-      <section className="grid gap-5 xl:grid-cols-2">
-        <FunctioningProfilePanel text={analysis.analisis.perfil_funcionamiento} />
-        <HrRecommendationsPanel items={analysis.analisis.recomendaciones_rrhh_sst} />
-      </section>
+      <HrRecommendationsPanel items={analysis.analisis.recomendaciones_rrhh_sst} />
     </div>
   );
 }

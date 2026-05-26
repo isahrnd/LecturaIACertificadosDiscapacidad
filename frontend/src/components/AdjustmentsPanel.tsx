@@ -12,9 +12,9 @@ export function AdjustmentsPanel({ adjustments }: AdjustmentsPanelProps) {
           {
             titulo: "Ajustes razonables por definir",
             descripcion:
-              "No se identificaron ajustes especificos. Se recomienda una revision conjunta entre RRHH, SST y el liderazgo del cargo.",
+              "No se identificaron ajustes específicos. Se recomienda una revisión conjunta entre RRHH, SST y el liderazgo del cargo.",
             fundamento:
-              "La informacion disponible no permite confirmar ajustes concretos por ahora.",
+              "La información disponible no permite confirmar ajustes concretos por ahora.",
           },
         ];
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from app.utils.disability_parser import normalize_disability_name, normalize_token
@@ -134,6 +135,99 @@ _AUDITIVA_ADJUSTMENTS_DEFAULTS: tuple[dict[str, str], ...] = (
         "descripcion": "Permitir audifonos, implante, subtitulos, mensajes escritos o alertas visuales segun la necesidad del puesto.",
         "fundamento": "Los apoyos tecnicos y visuales son coherentes con una discapacidad auditiva activa y mejoran la seguridad.",
     },
+)
+
+_TILDE_CORRECTIONS: tuple[tuple[str, str], ...] = (
+    (r'\bgestion\b', 'gestión'),
+    (r'\bdigitacion\b', 'digitación'),
+    (r'\bactualizacion\b', 'actualización'),
+    (r'\bclasificacion\b', 'clasificación'),
+    (r'\bverificacion\b', 'verificación'),
+    (r'\batencion\b', 'atención'),
+    (r'\bparticipacion\b', 'participación'),
+    (r'\bcomunicacion\b', 'comunicación'),
+    (r'\binformacion\b', 'información'),
+    (r'\binstruccion\b', 'instrucción'),
+    (r'\binduccion\b', 'inducción'),
+    (r'\bincorporacion\b', 'incorporación'),
+    (r'\binteraccion\b', 'interacción'),
+    (r'\borganizacion\b', 'organización'),
+    (r'\bdocumentacion\b', 'documentación'),
+    (r'\bconfirmacion\b', 'confirmación'),
+    (r'\bdescripcion\b', 'descripción'),
+    (r'\bdefinicion\b', 'definición'),
+    (r'\bfuncion\b', 'función'),
+    (r'\badministracion\b', 'administración'),
+    (r'\bevaluacion\b', 'evaluación'),
+    (r'\bsupervision\b', 'supervisión'),
+    (r'\bseleccion\b', 'selección'),
+    (r'\bcoordinacion\b', 'coordinación'),
+    (r'\bhabilitacion\b', 'habilitación'),
+    (r'\bintegracion\b', 'integración'),
+    (r'\badaptacion\b', 'adaptación'),
+    (r'\bplanificacion\b', 'planificación'),
+    (r'\bsensibilizacion\b', 'sensibilización'),
+    (r'\brecomendacion\b', 'recomendación'),
+    (r'\bposicion\b', 'posición'),
+    (r'\bprogramacion\b', 'programación'),
+    (r'\bcontratacion\b', 'contratación'),
+    (r'\bcondicion\b', 'condición'),
+    (r'\bsesion\b', 'sesión'),
+    (r'\bmediacion\b', 'mediación'),
+    (r'\bnegociacion\b', 'negociación'),
+    (r'\bestructuracion\b', 'estructuración'),
+    (r'\biluminacion\b', 'iluminación'),
+    (r'\bpresion\b', 'presión'),
+    (r'\bsenalizacion\b', 'señalización'),
+    (r'\bacompanamiento\b', 'acompañamiento'),
+    (r'\bacompanante\b', 'acompañante'),
+    (r'\bsenas\b', 'señas'),
+    (r'\bcritica\b', 'crítica'),
+    (r'\bcritico\b', 'crítico'),
+    (r'\bcriticas\b', 'críticas'),
+    (r'\bcriticos\b', 'críticos'),
+    (r'\bfacil\b', 'fácil'),
+    (r'\bfaciles\b', 'fáciles'),
+    (r'\btelefono\b', 'teléfono'),
+    (r'\btelefonos\b', 'teléfonos'),
+    (r'\btelefonica\b', 'telefónica'),
+    (r'\btelefonicas\b', 'telefónicas'),
+    (r'\btelefonico\b', 'telefónico'),
+    (r'\baudifono\b', 'audífono'),
+    (r'\baudifonos\b', 'audífonos'),
+    (r'\bsubtitulo\b', 'subtítulo'),
+    (r'\bsubtitulos\b', 'subtítulos'),
+    (r'\blogistico\b', 'logístico'),
+    (r'\blogistica\b', 'logística'),
+    (r'\bergonomia\b', 'ergonomía'),
+    (r'\bfisico\b', 'físico'),
+    (r'\bfisica\b', 'física'),
+    (r'\bfisicos\b', 'físicos'),
+    (r'\bfisicas\b', 'físicas'),
+    (r'\bbaston\b', 'bastón'),
+)
+
+_STOPWORDS_DEDUP: frozenset[str] = frozenset({
+    "DE", "LA", "EL", "LOS", "LAS", "Y", "O", "EN", "CON", "SIN",
+    "PARA", "POR", "QUE", "UN", "UNA", "UNOS", "UNAS", "AL", "DEL",
+    "SE", "SU", "SUS", "LO", "LE", "NI", "A", "E", "U",
+    "CUANDO", "COMO", "DONDE", "SOBRE", "ENTRE", "DESDE", "HASTA",
+    "ANTE", "BAJO", "TRAS", "MEDIANTE", "DURANTE", "SEGUN",
+    "NO", "SI", "YA", "SOLO", "CADA", "TODO", "MAS",
+    "ES", "SON", "SEA", "SEAN", "HAY", "PUEDE", "PUEDEN",
+    "DEBE", "DEBEN", "TIENE", "TIENEN",
+})
+
+_EXTRA_PHYSICAL_AUDITIVA_FILTER: tuple[str, ...] = (
+    "TRABAJO FISICO",
+    "EXIGENCIA FISICA",
+    "ESFUERZO MANUAL",
+    "ACTIVIDAD FISICA",
+    "DEMANDA FISICA",
+)
+
+_GRAMMAR_CORRECTIONS: tuple[tuple[str, str], ...] = (
+    (r'que normalmente sonoras?\b', 'que normalmente sean sonoros'),
 )
 
 
@@ -416,17 +510,20 @@ def _normalize_auditiva_only_analysis(
     if uncertainty_note:
         profile_parts.append(uncertainty_note)
 
-    return {
-        "tareas_recomendadas": {
-            "administrativo_oficina": administrativo,
-            "operativo_manual_liviano": operativo,
-            "relacional_apoyo": relacional,
+    return _normalize_output_quality(
+        {
+            "tareas_recomendadas": {
+                "administrativo_oficina": administrativo,
+                "operativo_manual_liviano": operativo,
+                "relacional_apoyo": relacional,
+            },
+            "ajustes_razonables": ajustes,
+            "tareas_no_recomendadas": tareas_no,
+            "perfil_funcionamiento": " ".join(profile_parts),
+            "recomendaciones_rrhh_sst": recomendaciones,
         },
-        "ajustes_razonables": ajustes,
-        "tareas_no_recomendadas": tareas_no,
-        "perfil_funcionamiento": " ".join(profile_parts),
-        "recomendaciones_rrhh_sst": recomendaciones,
-    }
+        [AUDITIVA],
+    )
 
 
 def _normalize_generic_analysis(
@@ -547,17 +644,20 @@ def _normalize_generic_analysis(
             fragments.extend(support_notes)
         perfil = " ".join(fragments)
 
-    return {
-        "tareas_recomendadas": {
-            "administrativo_oficina": administrativo[:3],
-            "operativo_manual_liviano": operativo[:3],
-            "relacional_apoyo": relacional[:3],
+    return _normalize_output_quality(
+        {
+            "tareas_recomendadas": {
+                "administrativo_oficina": administrativo[:3],
+                "operativo_manual_liviano": operativo[:3],
+                "relacional_apoyo": relacional[:3],
+            },
+            "ajustes_razonables": ajustes[:5],
+            "tareas_no_recomendadas": tareas_no[:6],
+            "perfil_funcionamiento": perfil,
+            "recomendaciones_rrhh_sst": recomendaciones[:6],
         },
-        "ajustes_razonables": ajustes[:5],
-        "tareas_no_recomendadas": tareas_no[:6],
-        "perfil_funcionamiento": perfil,
-        "recomendaciones_rrhh_sst": recomendaciones[:6],
-    }
+        active_categories,
+    )
 
 
 def _inject_domain_guidance(
@@ -1074,3 +1174,211 @@ def _safe_float(value: Any) -> float:
         return float(value)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _fix_tildes(text: str) -> str:
+    for pattern, replacement in _TILDE_CORRECTIONS:
+        def _repl(m: re.Match, rep: str = replacement) -> str:
+            word = m.group(0)
+            if word.isupper():
+                return rep.upper()
+            if word[0].isupper():
+                return rep[0].upper() + rep[1:]
+            return rep
+        text = re.sub(pattern, _repl, text, flags=re.IGNORECASE)
+    return text
+
+
+def _fix_grammar(text: str) -> str:
+    for pattern, replacement in _GRAMMAR_CORRECTIONS:
+        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+    return text
+
+
+def _stem_word(word: str) -> str:
+    if len(word) > 5 and word.endswith('ES'):
+        word = word[:-2]
+    elif len(word) > 4 and word.endswith('S'):
+        word = word[:-1]
+    return word[:6]
+
+
+def _content_words(text: str) -> frozenset[str]:
+    tokens = normalize_token(text).split()
+    cleaned = (re.sub(r'[^A-Z0-9]', '', t) for t in tokens)
+    words = [t for t in cleaned if t not in _STOPWORDS_DEDUP and len(t) > 2]
+    return frozenset(_stem_word(w) for w in words)
+
+
+def _both_restrict_exclusive_phone(a: str, b: str) -> bool:
+    _PHONE = ("TELEFO", "LLAMAD")
+    _EXCL = ("EXCLUS",)
+
+    def _is_phone_exclusive(text: str) -> bool:
+        n = normalize_token(text)
+        return any(k in n for k in _PHONE) and any(k in n for k in _EXCL)
+
+    return _is_phone_exclusive(a) and _is_phone_exclusive(b)
+
+
+def _both_light_sorting_tasks(a: str, b: str) -> bool:
+    _SORT = ("CLASIF",)
+    _LIGHT = ("MATERI", "LIVIAN")
+    _VISUAL = ("VISUAL", "SECUEN")
+
+    def _is_light_sorting(text: str) -> bool:
+        n = normalize_token(text)
+        return (
+            any(k in n for k in _SORT)
+            and any(k in n for k in _LIGHT)
+            and any(k in n for k in _VISUAL)
+        )
+
+    return _is_light_sorting(a) and _is_light_sorting(b)
+
+
+def _has_significant_overlap(a: str, b: str, threshold: float = 0.55) -> bool:
+    words_a = _content_words(a)
+    words_b = _content_words(b)
+    if not words_a or not words_b:
+        return False
+    smaller = words_a if len(words_a) <= len(words_b) else words_b
+    if len(words_a & words_b) / len(smaller) >= threshold:
+        return True
+    if _both_restrict_exclusive_phone(a, b):
+        return True
+    return _both_light_sorting_tasks(a, b)
+
+
+def _semantic_dedup_list(items: list[str]) -> list[str]:
+    result: list[str] = []
+    for item in items:
+        if not any(_has_significant_overlap(item, kept) for kept in result):
+            result.append(item)
+    return result
+
+
+def _dedup_tasks_cross_category(tasks: dict[str, list[str]]) -> dict[str, list[str]]:
+    seen: list[str] = []
+    deduped: dict[str, list[str]] = {}
+    for category, items in tasks.items():
+        deduped_items: list[str] = []
+        for item in items:
+            if not any(_has_significant_overlap(item, s) for s in seen):
+                deduped_items.append(item)
+                seen.append(item)
+        deduped[category] = deduped_items
+    return deduped
+
+
+def _get_adjustment_prefix(active_categories: list[str]) -> str:
+    if len(active_categories) > 1:
+        return "[Discapacidad múltiple]"
+    if not active_categories:
+        return "[Ajuste de accesibilidad]"
+    cat = active_categories[0]
+    if cat == AUDITIVA:
+        return "[Discapacidad auditiva]"
+    if cat == FISICA:
+        return "[Discapacidad física]"
+    if cat == VISUAL:
+        return "[Discapacidad visual]"
+    if cat == INTELECTUAL:
+        return "[Discapacidad cognitiva/intelectual]"
+    if cat == PSICOSOCIAL:
+        return "[Discapacidad psicosocial]"
+    if cat == SORDOCEGUERA:
+        return "[Sordoceguera]"
+    if cat == MULTIPLE:
+        return "[Discapacidad múltiple]"
+    return "[Ajuste de accesibilidad]"
+
+
+def _ensure_subtype_prefix(
+    items: list[dict[str, str]],
+    active_categories: list[str],
+) -> list[dict[str, str]]:
+    prefix = _get_adjustment_prefix(active_categories)
+    result: list[dict[str, str]] = []
+    for item in items:
+        titulo = item.get("titulo", "")
+        if titulo and not re.match(r'^\[.+?\]', titulo):
+            titulo = f"{prefix} {titulo}"
+        result.append({**item, "titulo": titulo})
+    return result
+
+
+def _filter_extra_physical_in_auditiva(items: list[str]) -> list[str]:
+    return [
+        item for item in items
+        if not _contains_any(normalize_token(item), _EXTRA_PHYSICAL_AUDITIVA_FILTER)
+    ]
+
+
+def _normalize_output_quality(
+    analysis: dict[str, Any],
+    active_categories: list[str],
+    subtype: str | None = None,
+) -> dict[str, Any]:
+    is_auditiva_only = active_categories == [AUDITIVA]
+
+    def fix_str(s: str) -> str:
+        return _fix_grammar(_fix_tildes(s))
+
+    def fix_list(items: list[str]) -> list[str]:
+        return [fix_str(item) for item in items]
+
+    def fix_adjustments(items: list[dict[str, str]]) -> list[dict[str, str]]:
+        return [
+            {
+                "titulo": fix_str(item.get("titulo", "")),
+                "descripcion": fix_str(item.get("descripcion", "")),
+                "fundamento": fix_str(item.get("fundamento", "")),
+            }
+            for item in items
+        ]
+
+    tasks = analysis.get("tareas_recomendadas", {})
+    administrativo = fix_list(list(tasks.get("administrativo_oficina") or []))
+    operativo = fix_list(list(tasks.get("operativo_manual_liviano") or []))
+    relacional = fix_list(list(tasks.get("relacional_apoyo") or []))
+    ajustes = fix_adjustments(list(analysis.get("ajustes_razonables") or []))
+    tareas_no = fix_list(list(analysis.get("tareas_no_recomendadas") or []))
+    perfil = fix_str(str(analysis.get("perfil_funcionamiento") or ""))
+    recomendaciones = fix_list(list(analysis.get("recomendaciones_rrhh_sst") or []))
+
+    administrativo = _semantic_dedup_list(administrativo)
+    operativo = _semantic_dedup_list(operativo)
+    relacional = _semantic_dedup_list(relacional)
+    tareas_no = _semantic_dedup_list(tareas_no)
+    recomendaciones = _semantic_dedup_list(recomendaciones)
+
+    deduped = _dedup_tasks_cross_category({
+        "administrativo_oficina": administrativo,
+        "operativo_manual_liviano": operativo,
+        "relacional_apoyo": relacional,
+    })
+    administrativo = deduped["administrativo_oficina"]
+    operativo = deduped["operativo_manual_liviano"]
+    relacional = deduped["relacional_apoyo"]
+
+    ajustes = _ensure_subtype_prefix(ajustes, active_categories)
+
+    if is_auditiva_only:
+        administrativo = _filter_extra_physical_in_auditiva(administrativo)
+        operativo = _filter_extra_physical_in_auditiva(operativo)
+        relacional = _filter_extra_physical_in_auditiva(relacional)
+        tareas_no = _filter_extra_physical_in_auditiva(tareas_no)
+        recomendaciones = _filter_extra_physical_in_auditiva(recomendaciones)
+
+    return {
+        "tareas_recomendadas": {
+            "administrativo_oficina": administrativo,
+            "operativo_manual_liviano": operativo,
+            "relacional_apoyo": relacional,
+        },
+        "ajustes_razonables": ajustes,
+        "tareas_no_recomendadas": tareas_no,
+        "perfil_funcionamiento": perfil,
+        "recomendaciones_rrhh_sst": recomendaciones,
+    }

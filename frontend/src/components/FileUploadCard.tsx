@@ -4,9 +4,11 @@ import { CheckIcon, PlusIcon, UploadArrowIcon } from "./Icons";
 interface FileUploadCardProps {
   file: File | null;
   formFile: File | null;
+  clinicalFile: File | null;
   observations: string;
   onFileChange: (file: File | null) => void;
   onFormFileChange: (file: File | null) => void;
+  onClinicalFileChange: (file: File | null) => void;
   onObservationsChange: (value: string) => void;
   onAnalyze: () => void;
   isBusy: boolean;
@@ -15,15 +17,18 @@ interface FileUploadCardProps {
 export function FileUploadCard({
   file,
   formFile,
+  clinicalFile,
   observations,
   onFileChange,
   onFormFileChange,
+  onClinicalFileChange,
   onObservationsChange,
   onAnalyze,
   isBusy,
 }: FileUploadCardProps) {
   const certificateInputRef = useRef<HTMLInputElement | null>(null);
   const formInputRef = useRef<HTMLInputElement | null>(null);
+  const clinicalInputRef = useRef<HTMLInputElement | null>(null);
 
   const renderFileSummary = (selectedFile: File | null, emptyState: string) =>
     selectedFile
@@ -42,9 +47,9 @@ export function FileUploadCard({
               Lectura IA de certificados de discapacidad
             </h1>
             <p className="max-w-3xl text-base leading-8 text-slate-600 sm:text-lg">
-              Carga el certificado, complementa con formulario de entrevista si
-              lo tienes y agrega observaciones especificas para generar un
-              perfil funcional con analisis procesado con IA.
+              Carga el certificado, complementa con formulario de especialista
+              si lo tienes y agrega observaciones específicas para generar un
+              perfil funcional con análisis procesado con IA.
             </p>
           </div>
           <div className="flex flex-wrap gap-3 text-sm text-slate-500">
@@ -52,7 +57,7 @@ export function FileUploadCard({
               PDF, JPG, PNG o WEBP
             </span>
             <span className="rounded-full bg-primary-foam px-3 py-1 font-semibold text-almia-700">
-              Analisis procesado con IA
+              Análisis procesado con IA
             </span>
             <span className="rounded-full bg-terracotta-50 px-3 py-1 font-semibold text-terracotta-700">
               Certificado obligatorio, extras opcionales
@@ -63,7 +68,7 @@ export function FileUploadCard({
 
       <div className="p-6 md:p-8 lg:p-10">
         <div className="rounded-3xl border border-line/80 bg-white p-6 shadow-card md:p-8">
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
             <button
               type="button"
               onClick={() => certificateInputRef.current?.click()}
@@ -103,12 +108,12 @@ export function FileUploadCard({
                 <PlusIcon className="h-7 w-7" aria-hidden="true" />
               </div>
               <h2 className="text-lg font-extrabold text-ink">
-                Subir formulario de entrevista opcional
+                Subir formulario con especialista de Almia (opcional)
               </h2>
               <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">
                 {renderFileSummary(
                   formFile,
-                  "Complementa el analisis con informacion cualitativa del proceso de entrevista.",
+                  "Adjunta este formulario solo si la persona ya tuvo una entrevista o valoración funcional con una especialista de Almia. Este documento ayuda a precisar apoyos, ajustes razonables y recomendaciones laborales.",
                 )}
               </p>
               <span className="mt-4 inline-flex rounded-full bg-white px-4 py-1 text-xs font-bold text-almia-700 shadow-sm">
@@ -123,6 +128,36 @@ export function FileUploadCard({
               className="hidden"
               onChange={(event) => onFormFileChange(event.target.files?.[0] ?? null)}
             />
+
+            <button
+              type="button"
+              onClick={() => clinicalInputRef.current?.click()}
+              className="group flex min-h-[220px] flex-col items-center justify-center rounded-[22px] border-2 border-dashed border-almia-200 bg-gradient-soft px-6 py-10 text-center transition hover:border-almia-400 hover:bg-primary-foam/60"
+            >
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-foam text-almia-700 transition group-hover:scale-105">
+                <PlusIcon className="h-7 w-7" aria-hidden="true" />
+              </div>
+              <h2 className="text-lg font-extrabold text-ink">
+                Subir historia clínica (opcional)
+              </h2>
+              <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">
+                {renderFileSummary(
+                  clinicalFile,
+                  "Adjunta la historia clínica solo si cuentas con autorización para usarla en este análisis. Este documento puede complementar diagnósticos, evolución, tratamientos, apoyos técnicos y pronóstico funcional.",
+                )}
+              </p>
+              <span className="mt-4 inline-flex rounded-full bg-white px-4 py-1 text-xs font-bold text-almia-700 shadow-sm">
+                {clinicalFile ? "Historia clínica cargada" : "Seleccionar archivo"}
+              </span>
+            </button>
+
+            <input
+              ref={clinicalInputRef}
+              type="file"
+              accept=".pdf,.png,.jpg,.jpeg,.webp"
+              className="hidden"
+              onChange={(event) => onClinicalFileChange(event.target.files?.[0] ?? null)}
+            />
           </div>
 
           <div className="mt-6">
@@ -130,14 +165,14 @@ export function FileUploadCard({
               htmlFor="observations"
               className="text-sm font-semibold text-ink"
             >
-              Observaciones especificas
+              Observaciones específicas
             </label>
             <textarea
               id="observations"
               value={observations}
               onChange={(event) => onObservationsChange(event.target.value)}
               rows={5}
-              placeholder="Ej: persona oralizada, usa audifonos, requiere interprete, movilidad conservada en miembros superiores, restricciones de desplazamiento, apoyos familiares, etc."
+              placeholder="Ej: persona oralizada, usa audífonos, requiere intérprete, movilidad conservada en miembros superiores, restricciones de desplazamiento, apoyos familiares, etc."
               className="mt-2 min-h-[128px] w-full rounded-2xl border border-line bg-white px-4 py-3 text-sm text-slate-700 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-almia-300 focus:ring-2 focus:ring-almia-100"
             />
           </div>
@@ -173,9 +208,10 @@ export function FileUploadCard({
                 onClick={() => {
                   onFileChange(null);
                   onFormFileChange(null);
+                  onClinicalFileChange(null);
                   onObservationsChange("");
                 }}
-                disabled={(!file && !formFile && !observations.trim()) || isBusy}
+                disabled={(!file && !formFile && !clinicalFile && !observations.trim()) || isBusy}
                 className="inline-flex items-center justify-center rounded-2xl border border-line bg-white px-5 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Limpiar campos

@@ -63,20 +63,17 @@ export function ProfileHeaderCard({ analysis }: ProfileHeaderCardProps) {
         <div className="rounded-[30px] border border-almia-100 bg-white/90 p-5 shadow-sm shadow-almia-100/40">
           <div className="flex flex-col gap-3 border-b border-almia-100/80 pb-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-almia-700/75">
-                Condiciones del solicitante
-              </p>
-              <h3 className="mt-1 text-xl font-extrabold tracking-tight text-ink">
-                Condiciones de discapacidad identificadas
+              <h3 className="text-xl font-extrabold tracking-tight text-ink">
+                Discapacidad identificada
               </h3>
               <p className="mt-1 text-sm text-slate-500">
-                Se muestran unicamente las condiciones identificadas en el
+                Se muestran únicamente las condiciones identificadas en el
                 certificado.
               </p>
             </div>
             <div className="inline-flex w-fit items-center rounded-full bg-almia-50 px-4 py-2 text-sm font-bold text-almia-700">
               {hasActiveConditions
-                ? `${activeConditions.length} activa${activeConditions.length === 1 ? "" : "s"}`
+                ? `${activeConditions.length} condición${activeConditions.length === 1 ? " activa" : "es activas"}`
                 : "Sin condiciones activas"}
             </div>
           </div>
@@ -95,10 +92,7 @@ export function ProfileHeaderCard({ analysis }: ProfileHeaderCardProps) {
                   key={item}
                   className="rounded-[26px] border border-almia-100 bg-gradient-to-br from-almia-50 via-white to-almia-100/80 p-4"
                 >
-                  <p className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-almia-700/70">
-                    Condicion identificada
-                  </p>
-                  <div className="mt-3">
+                  <div className="mt-1">
                     <DisabilityBadge label={item} cardLike />
                   </div>
                 </div>
@@ -110,7 +104,7 @@ export function ProfileHeaderCard({ analysis }: ProfileHeaderCardProps) {
                   certificado.
                 </p>
                 <p className="mt-1">
-                  El resumen conserva el resto de la informacion funcional y
+                  El resumen conserva el resto de la información funcional y
                   laboral disponible para esta persona.
                 </p>
               </div>

@@ -9,12 +9,14 @@ import { useCertificateAnalysis } from "./hooks/useCertificateAnalysis";
 export default function App() {
   const [file, setFile] = useState<File | null>(null);
   const [formFile, setFormFile] = useState<File | null>(null);
+  const [clinicalFile, setClinicalFile] = useState<File | null>(null);
   const [observations, setObservations] = useState("");
   const { state, error, result, isBusy, submit, reset } = useCertificateAnalysis();
 
   const handleReset = () => {
     setFile(null);
     setFormFile(null);
+    setClinicalFile(null);
     setObservations("");
     reset();
   };
@@ -25,11 +27,13 @@ export default function App() {
         <FileUploadCard
           file={file}
           formFile={formFile}
+          clinicalFile={clinicalFile}
           observations={observations}
           onFileChange={setFile}
           onFormFileChange={setFormFile}
+          onClinicalFileChange={setClinicalFile}
           onObservationsChange={setObservations}
-          onAnalyze={() => void submit(file, formFile, observations)}
+          onAnalyze={() => void submit(file, formFile, observations, clinicalFile)}
           isBusy={isBusy}
         />
 
@@ -54,7 +58,7 @@ export default function App() {
         {state === "error" && error && (
           <ErrorView
             message={error}
-            onRetry={() => void submit(file, formFile, observations)}
+            onRetry={() => void submit(file, formFile, observations, clinicalFile)}
           />
         )}
 

@@ -7,7 +7,7 @@ interface NotRecommendedPanelProps {
 export function NotRecommendedPanel({ items }: NotRecommendedPanelProps) {
   const displayItems = toDisplayList(
     items,
-    "No se identificaron restricciones laborales especificas.",
+    "No se identificaron restricciones laborales específicas.",
   );
   const columns = splitIntoColumns(displayItems, 3);
 

@@ -12,6 +12,7 @@ const MAX_SIZE_BYTES = 10 * 1024 * 1024;
 export interface CertificateAnalysisInput {
   file: File;
   formFile?: File | null;
+  clinicalFile?: File | null;
   observations?: string;
 }
 
@@ -100,12 +101,16 @@ export function validateOptionalSupportingFile(file: File | null): string | null
 export async function analyzeCertificate({
   file,
   formFile,
+  clinicalFile,
   observations,
 }: CertificateAnalysisInput): Promise<AnalysisResult> {
   const formData = new FormData();
   formData.append("file", file);
   if (formFile) {
     formData.append("form_file", formFile);
+  }
+  if (clinicalFile) {
+    formData.append("clinical_file", clinicalFile);
   }
   if (observations?.trim()) {
     formData.append("observations", observations.trim());

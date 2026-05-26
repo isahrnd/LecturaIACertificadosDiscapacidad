@@ -59,7 +59,7 @@ class OpenAIAnalysisService:
         return self._client
 
     async def analyze_certificate(
-        self, request: OpenAIAnalysisRequest, *, used_vision: bool
+        self, request: OpenAIAnalysisRequest, *, used_vision: bool, clinical_text: str | None = None
     ) -> CertificateAnalysisSchema:
         if not self.settings.openai_api_key:
             raise HTTPException(
@@ -70,6 +70,7 @@ class OpenAIAnalysisService:
         general_payload = await self._run_general_analysis(
             request=request,
             used_vision=used_vision,
+            clinical_text=clinical_text,
         )
         general_payload["dominios"] = normalize_dominios(general_payload)
 
@@ -100,6 +101,7 @@ class OpenAIAnalysisService:
         *,
         request: OpenAIAnalysisRequest,
         used_vision: bool,
+        clinical_text: str | None = None,
     ) -> dict[str, Any]:
         messages = self._build_messages(
             system_prompt=GENERAL_SYSTEM_PROMPT,
@@ -109,6 +111,7 @@ class OpenAIAnalysisService:
                 used_vision=used_vision,
                 form_text=request.form_text,
                 observations=request.observations,
+                clinical_text=clinical_text,
             ),
             image_data_urls=request.image_data_urls,
         )
