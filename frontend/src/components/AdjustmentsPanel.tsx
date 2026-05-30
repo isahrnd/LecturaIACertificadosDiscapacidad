@@ -1,10 +1,15 @@
 import type { AjusteRazonable } from "../types/analysis";
+import { getAdjustmentsHeading, stripAdjustmentTitlePrefix } from "../utils/analysis";
 
 interface AdjustmentsPanelProps {
   adjustments: AjusteRazonable[];
+  activeConditions: string[];
 }
 
-export function AdjustmentsPanel({ adjustments }: AdjustmentsPanelProps) {
+export function AdjustmentsPanel({
+  adjustments,
+  activeConditions,
+}: AdjustmentsPanelProps) {
   const items =
     adjustments.length > 0
       ? adjustments
@@ -21,7 +26,9 @@ export function AdjustmentsPanel({ adjustments }: AdjustmentsPanelProps) {
   return (
     <section className="panel-card overflow-hidden">
       <header className="border-b border-almia-100 bg-gradient-to-r from-[#f7fbfa] via-almia-50 to-[#eef8f6] px-6 py-4">
-        <h3 className="panel-title text-almia-700">Con ajustes razonables</h3>
+        <h3 className="panel-title text-almia-700">
+          {getAdjustmentsHeading(activeConditions)}
+        </h3>
       </header>
       <div className="space-y-4 p-6">
         {items.map((item) => (
@@ -30,7 +37,7 @@ export function AdjustmentsPanel({ adjustments }: AdjustmentsPanelProps) {
             className="rounded-[22px] border border-almia-100 bg-gradient-to-br from-white via-almia-50 to-almia-100/55 p-5"
           >
             <h4 className="text-lg font-extrabold text-almia-700">
-              {item.titulo}
+              {stripAdjustmentTitlePrefix(item.titulo)}
             </h4>
             <p className="mt-2 text-sm leading-7 text-slate-700">
               {item.descripcion}

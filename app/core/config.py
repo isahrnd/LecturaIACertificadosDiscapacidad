@@ -64,8 +64,16 @@ class Settings(BaseModel):
     request_timeout_seconds: float = Field(
         default_factory=lambda: float(os.getenv("REQUEST_TIMEOUT_SECONDS", "90"))
     )
+    analysis_debug: bool = Field(
+        default_factory=lambda: os.getenv("ANALYSIS_DEBUG", "false").strip().lower()
+        in {"1", "true", "yes", "on"}
+    )
     max_pdf_pages_for_vision: int = Field(
         default_factory=lambda: int(os.getenv("MAX_PDF_PAGES_FOR_VISION", "5"))
+    )
+    pdf_always_include_images_for_openai: bool = Field(
+        default_factory=lambda: os.getenv("PDF_ALWAYS_INCLUDE_IMAGES_FOR_OPENAI", "true").strip().lower()
+        in {"1", "true", "yes", "on"}
     )
     max_image_dimension: int = Field(
         default_factory=lambda: int(os.getenv("MAX_IMAGE_DIMENSION", "1600"))

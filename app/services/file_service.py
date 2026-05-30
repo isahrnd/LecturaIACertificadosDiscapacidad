@@ -9,6 +9,7 @@ from fastapi import HTTPException, UploadFile, status
 from PIL import Image, UnidentifiedImageError
 
 from app.core.config import Settings, get_settings
+from app.core.logging import logger
 from app.schemas.document import DocumentPayload, ExtractedDocumentContent
 
 ALLOWED_CONTENT_TYPES = {
@@ -85,6 +86,16 @@ class FileService:
         image_data_url = self._normalize_image_to_data_url(
             payload.raw_bytes, payload.content_type
         )
+        if self.settings.analysis_debug:
+            logger.info(
+                "[ANALYSIS_DEBUG][file_service] filename=%s is_pdf=%s extracted_chars=%s image_count=%s used_vision=%s pdf_always_include_images_for_openai=%s",
+                payload.filename,
+                False,
+                0,
+                1,
+                True,
+                self.settings.pdf_always_include_images_for_openai,
+            )
         return ExtractedDocumentContent(
             extracted_text="",
             image_data_urls=[image_data_url],
@@ -120,9 +131,22 @@ class FileService:
 
         extracted_text = "\n\n".join(extracted_text_parts)
         used_vision = len(extracted_text.strip()) < 80
+        include_images_for_openai = (
+            self.settings.pdf_always_include_images_for_openai or used_vision
+        )
+        if self.settings.analysis_debug:
+            logger.info(
+                "[ANALYSIS_DEBUG][file_service] filename=%s is_pdf=%s extracted_chars=%s image_count=%s used_vision=%s pdf_always_include_images_for_openai=%s",
+                payload.filename,
+                True,
+                len(extracted_text),
+                len(image_data_urls if include_images_for_openai else []),
+                used_vision,
+                self.settings.pdf_always_include_images_for_openai,
+            )
         return ExtractedDocumentContent(
             extracted_text=extracted_text,
-            image_data_urls=image_data_urls if used_vision else [],
+            image_data_urls=image_data_urls if include_images_for_openai else [],
             source_type="pdf",
             page_count=len(document),
             used_vision=used_vision,

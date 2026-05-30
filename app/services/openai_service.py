@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -29,7 +30,7 @@ from app.utils.analysis_guardrails import normalize_analysis_for_certificate
 from app.schemas.analysis import CertificateAnalysisSchema
 from app.schemas.document import OpenAIAnalysisRequest
 from app.utils.analysis_fallback import fallback_build_analysis, is_analysis_empty
-from app.utils.disability_parser import clean_disabilities, parse_disability_table
+from app.utils.disability_parser import clean_disabilities, normalize_token, parse_disability_table
 from app.utils.json_utils import extract_json_object
 
 load_dotenv()
@@ -42,6 +43,101 @@ EXPECTED_DOMAIN_KEYS = (
     "vida_diaria",
     "participacion",
 )
+
+
+def _format_certificate_date(day: int, month: int, year: int) -> str:
+    return f"{day:02d}/{month:02d}/{year:04d}"
+
+
+def _extract_section_22_date(extracted_text: str) -> str:
+    normalized_text = normalize_token(extracted_text or "")
+    if not normalized_text:
+        return ""
+
+    section_match = re.search(
+        r"2\s*\.?\s*2\s+FECHA DE LA CERTIFICACION(?P<section>.*?)(?:\b2\s*\.?\s*3\b|\b3\s*\.?\b|$)",
+        normalized_text,
+        flags=re.DOTALL,
+    )
+    section_text = section_match.group("section") if section_match else normalized_text
+
+    year_match = re.search(r"\bANO\b\s*[:=\-]?\s*(\d{4})", section_text)
+    month_match = re.search(r"\bMES\b\s*[:=\-]?\s*(\d{1,2})", section_text)
+    day_match = re.search(r"\bDIA\b\s*[:=\-]?\s*(\d{1,2})", section_text)
+    if not (year_match and month_match and day_match):
+        return ""
+
+    year = int(year_match.group(1))
+    month = int(month_match.group(1))
+    day = int(day_match.group(1))
+    if year < 1900 or not 1 <= month <= 12 or not 1 <= day <= 31:
+        return ""
+    return _format_certificate_date(day, month, year)
+
+
+def _normalize_certificate_date_value(raw_value: str) -> str:
+    text = (raw_value or "").strip()
+    if not text:
+        return ""
+
+    normalized = normalize_token(text)
+    labeled_year = re.search(r"\bANO\b\s*[:=\-]?\s*(\d{4})", normalized)
+    labeled_month = re.search(r"\bMES\b\s*[:=\-]?\s*(\d{1,2})", normalized)
+    labeled_day = re.search(r"\bDIA\b\s*[:=\-]?\s*(\d{1,2})", normalized)
+    if labeled_year and labeled_month and labeled_day:
+        return _format_certificate_date(
+            int(labeled_day.group(1)),
+            int(labeled_month.group(1)),
+            int(labeled_year.group(1)),
+        )
+
+    year_first = re.fullmatch(r"(\d{4})[\/\-\. ](\d{1,2})[\/\-\. ](\d{1,2})", normalized)
+    if year_first:
+        return _format_certificate_date(
+            int(year_first.group(3)),
+            int(year_first.group(2)),
+            int(year_first.group(1)),
+        )
+
+    day_first = re.fullmatch(r"(\d{1,2})[\/\-\. ](\d{1,2})[\/\-\. ](\d{4})", normalized)
+    if day_first:
+        day = int(day_first.group(1))
+        month = int(day_first.group(2))
+        year = int(day_first.group(3))
+        if 1 <= month <= 12 and 1 <= day <= 31:
+            return _format_certificate_date(day, month, year)
+
+    return text
+
+
+def normalize_certificate_persona(
+    payload: dict[str, Any],
+    *,
+    extracted_text: str,
+    settings: Settings | None = None,
+) -> dict[str, Any]:
+    settings = settings or get_settings()
+    persona = payload.get("persona")
+    if not isinstance(persona, dict):
+        return payload
+
+    section_date = _extract_section_22_date(extracted_text)
+    current_date = str(persona.get("fecha_certificacion") or "")
+    if settings.analysis_debug:
+        logger.info(
+            "[ANALYSIS_DEBUG][openai_service] persona.fecha_certificacion raw_model=%s source_text_preview=%s extracted_section_22_date=%s",
+            current_date,
+            (extracted_text or "")[:500].replace("\n", " "),
+            section_date,
+        )
+    persona["fecha_certificacion"] = section_date or _normalize_certificate_date_value(current_date)
+    if settings.analysis_debug:
+        logger.info(
+            "[ANALYSIS_DEBUG][openai_service] persona.fecha_certificacion normalized=%s",
+            persona["fecha_certificacion"],
+        )
+    payload["persona"] = persona
+    return payload
 
 
 class OpenAIAnalysisService:
@@ -72,6 +168,11 @@ class OpenAIAnalysisService:
             used_vision=used_vision,
             clinical_text=clinical_text,
         )
+        general_payload = normalize_certificate_persona(
+            general_payload,
+            extracted_text=request.text,
+            settings=self.settings,
+        )
         general_payload["dominios"] = normalize_dominios(general_payload)
 
         disability_result = await self._run_specialized_disability_extraction(
@@ -94,6 +195,26 @@ class OpenAIAnalysisService:
             timezone.utc
         ).isoformat()
         general_payload["metadata"]["estado"] = "success"
+        if self.settings.analysis_debug:
+            logger.info(
+                "[ANALYSIS_DEBUG][openai_service] final_response model=%s final_fecha_certificacion=%s final_tareas_no=%s final_recomendaciones=%s",
+                self.settings.openai_model,
+                (
+                    general_payload.get("persona", {}).get("fecha_certificacion")
+                    if isinstance(general_payload.get("persona"), dict)
+                    else ""
+                ),
+                (
+                    general_payload.get("analisis", {}).get("tareas_no_recomendadas")
+                    if isinstance(general_payload.get("analisis"), dict)
+                    else []
+                ),
+                (
+                    general_payload.get("analisis", {}).get("recomendaciones_rrhh_sst")
+                    if isinstance(general_payload.get("analisis"), dict)
+                    else []
+                ),
+            )
         return CertificateAnalysisSchema.model_validate(general_payload)
 
     async def _run_general_analysis(
@@ -103,6 +224,13 @@ class OpenAIAnalysisService:
         used_vision: bool,
         clinical_text: str | None = None,
     ) -> dict[str, Any]:
+        if self.settings.analysis_debug:
+            logger.info(
+                "[ANALYSIS_DEBUG][openai_service] calling_general_analysis model=%s image_count=%s used_vision=%s",
+                self.settings.openai_model,
+                len(request.image_data_urls),
+                used_vision,
+            )
         messages = self._build_messages(
             system_prompt=GENERAL_SYSTEM_PROMPT,
             user_prompt=build_general_user_prompt(
@@ -124,6 +252,13 @@ class OpenAIAnalysisService:
         used_vision: bool,
         fallback_raw: Any,
     ):
+        if self.settings.analysis_debug:
+            logger.info(
+                "[ANALYSIS_DEBUG][openai_service] calling_disability_extraction model=%s image_count=%s used_vision=%s",
+                self.settings.openai_model,
+                len(request.image_data_urls),
+                used_vision,
+            )
         messages = self._build_messages(
             system_prompt=DISABILITY_TABLE_SYSTEM_PROMPT,
             user_prompt=build_disability_table_user_prompt(

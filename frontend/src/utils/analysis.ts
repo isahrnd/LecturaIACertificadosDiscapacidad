@@ -30,7 +30,17 @@ export function formatCertificationDate(value: string): string {
   if (!value) {
     return "Fecha no disponible";
   }
-  const parsed = new Date(value);
+  const trimmed = value.trim();
+  const dayFirstMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  let parsed: Date;
+
+  if (dayFirstMatch) {
+    const [, day, month, year] = dayFirstMatch;
+    parsed = new Date(Number(year), Number(month) - 1, Number(day));
+  } else {
+    parsed = new Date(trimmed);
+  }
+
   if (Number.isNaN(parsed.getTime())) {
     return value;
   }
@@ -39,6 +49,24 @@ export function formatCertificationDate(value: string): string {
     month: "short",
     year: "numeric",
   }).format(parsed);
+}
+
+export function stripAdjustmentTitlePrefix(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return trimmed;
+  }
+
+  return trimmed.replace(/^\[[^\]]+\]\s*/u, "").trim() || trimmed;
+}
+
+export function getAdjustmentsHeading(activeConditions: string[]): string {
+  const cleaned = activeConditions.map((item) => item.trim()).filter(Boolean);
+  if (cleaned.length !== 1) {
+    return "Con ajustes razonables";
+  }
+
+  return `Con ajustes razonables para discapacidad ${cleaned[0].toLowerCase()}`;
 }
 
 export function toDisplayList(items: string[], fallback: string): string[] {

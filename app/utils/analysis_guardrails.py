@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from app.core.config import get_settings
+from app.core.logging import logger
 from app.utils.disability_parser import normalize_disability_name, normalize_token
 
 AUDITIVA = normalize_disability_name("Auditiva") or "Auditiva"
@@ -32,23 +34,58 @@ DOMAIN_LABELS: dict[str, str] = {
 }
 
 _PHYSICAL_RESTRICTION_KEYWORDS: tuple[str, ...] = (
+    # disability / limitation labels
     "DISCAPACIDAD FISICA",
     "LIMITACION FISICA",
+    "LIMITACIONES FISICAS",
+    "RESTRICCION FISICA",
     "RIESGO FISICO",
+    # effort / load
     "ESFUERZO FISICO",
+    "ESFUERZO MANUAL",
     "SOBREESFUERZO",
+    "CARGA FISICA",
+    "TRABAJO FISICO",
+    "ACTIVIDAD FISICA",
+    "EXIGENCIA FISICA",
+    "DEMANDA FISICA",
+    # mobility / displacement
     "MOVILIDAD INTENSA",
     "MOVILIDAD REDUCIDA",
+    "MOVILIDAD LIMITADA",
     "DESPLAZAMIENTOS FRECUENTES",
+    "DESPLAZAMIENTOS PROLONGADOS",
+    "DESPLAZAMIENTOS CONTINUOS",
     "RECORRIDOS PROLONGADOS",
+    "DEAMBULACION",
+    "RUTAS DESPEJADAS",
+    # postural / heights
     "CAMBIOS POSTURALES",
     "EXIGENCIA POSTURAL",
     "TRABAJO EN ALTURAS",
+    "SUPERFICIES INESTABLES",
+    "CAIDAS",
+    # handling / weight
     "CARGUE DE PESO",
     "MANIPULACION DE CARGAS",
+    "MANIPULACION REPETITIVA",
     "LEVANTAMIENTO DE CARGAS",
     "OPERACIONES MANUALES PESADAS",
     "ESFUERZO CORPORAL",
+    # accessibility barriers
+    "BARRERAS ARQUITECTONICAS",
+    "OBSTACULOS FISICOS",
+    "ACCESIBILIDAD FISICA",
+    "ESPACIO FISICO",
+    "ERGONOMIA",
+    # mobility aids / assistive devices
+    "SILLA DE RUEDAS",
+    "BASTON",
+    "CAMINADOR",
+    "MULETAS",
+    "PROTESIS",
+    "ORTESIS",
+    "AYUDAS TECNICAS DE MOVILIDAD",
 )
 
 _VISUAL_RESTRICTION_KEYWORDS: tuple[str, ...] = (
@@ -57,6 +94,30 @@ _VISUAL_RESTRICTION_KEYWORDS: tuple[str, ...] = (
     "CEGUERA",
     "DEFICIT VISUAL",
     "LIMITACION VISUAL",
+    "LIMITACIONES VISUALES",
+    "RESTRICCION VISUAL",
+    "ADAPTACIONES VISUALES",
+    "EXCLUSIVAMENTE DE LA VISION",
+)
+
+_COGNITIVE_PSICOSOCIAL_RESTRICTION_KEYWORDS: tuple[str, ...] = (
+    "GESTION COGNITIVA",
+    "GESTION EMOCIONAL",
+    "REGULACION EMOCIONAL",
+    "SOBRECARGA COGNITIVA",
+    "DEMANDA COGNITIVA",
+    "PRESION SOCIAL",
+    "ESTIMULOS ESTRESANTES",
+    "MANEJO DE ESTRES",
+    "MANEJO DE FATIGA",
+    "FATIGA Y ESTRES",
+    "SUPERVISION MINIMA",
+    "INTERACCION SOCIAL",
+    "ESTIMULACION SENSORIAL",
+    "APOYO EMOCIONAL",
+    "ALTA CONCENTRACION",
+    "SUPERVISION PERMANENTE",
+    "AMBIENTES PREDECIBLES",
 )
 
 _DISABILITY_LABELS: dict[str, tuple[str, ...]] = {
@@ -76,7 +137,6 @@ _PHONE_SUPPORT_KEYWORDS: tuple[str, ...] = (
     "SUBTITUL",
     "TRANSCRIP",
     "CHAT",
-    "ESCRIT",
     "RELEVO",
     "MENSAJE",
 )
@@ -96,7 +156,7 @@ _AUDITIVA_OPERATIVE_DEFAULTS: tuple[str, ...] = (
 _AUDITIVA_RELATIONAL_DEFAULTS: tuple[str, ...] = (
     "Atencion y soporte por chat, correo o canales escritos.",
     "Apoyo interno en equipos con acuerdos de comunicacion accesible.",
-    "Participacion en equipo con acompanamiento inicial y confirmacion escrita de instrucciones.",
+    "Participacion en equipo con induccion inicial clara y confirmacion escrita de instrucciones.",
 )
 
 _AUDITIVA_NON_RECOMMENDED_DEFAULTS: tuple[str, ...] = (
@@ -131,7 +191,7 @@ _AUDITIVA_ADJUSTMENTS_DEFAULTS: tuple[dict[str, str], ...] = (
         "fundamento": "La accesibilidad comunicativa mejora cuando hay lectura visual del contexto y menos interferencia sonora.",
     },
     {
-        "titulo": "Alertas visuales y apoyos auditivos",
+        "titulo": "Alertas visuales y apoyos de comunicacion",
         "descripcion": "Permitir audifonos, implante, subtitulos, mensajes escritos o alertas visuales segun la necesidad del puesto.",
         "fundamento": "Los apoyos tecnicos y visuales son coherentes con una discapacidad auditiva activa y mejoran la seguridad.",
     },
@@ -205,6 +265,8 @@ _TILDE_CORRECTIONS: tuple[tuple[str, str], ...] = (
     (r'\bfisicos\b', 'físicos'),
     (r'\bfisicas\b', 'físicas'),
     (r'\bbaston\b', 'bastón'),
+    (r'\bsegun\b', 'según'),
+    (r'\bcomprension\b', 'comprensión'),
 )
 
 _STOPWORDS_DEDUP: frozenset[str] = frozenset({
@@ -218,16 +280,23 @@ _STOPWORDS_DEDUP: frozenset[str] = frozenset({
     "DEBE", "DEBEN", "TIENE", "TIENEN",
 })
 
-_EXTRA_PHYSICAL_AUDITIVA_FILTER: tuple[str, ...] = (
-    "TRABAJO FISICO",
-    "EXIGENCIA FISICA",
-    "ESFUERZO MANUAL",
-    "ACTIVIDAD FISICA",
-    "DEMANDA FISICA",
-)
-
 _GRAMMAR_CORRECTIONS: tuple[tuple[str, str], ...] = (
     (r'que normalmente sonoras?\b', 'que normalmente sean sonoros'),
+)
+
+_TILDE_CORRECTIONS_EXTRA: tuple[tuple[str, str], ...] = (
+    (r"\brevision\b", "revisión"),
+    (r"\borientacion\b", "orientación"),
+    (r"\boperacion\b", "operación"),
+    (r"\boperaciones\b", "operaciones"),
+    (r"\bsimultaneos\b", "simultáneos"),
+    (r"\bsimultaneo\b", "simultáneo"),
+    (r"\bvia\b", "vía"),
+    (r"\bperiodica\b", "periódica"),
+    (r"\bperiodico\b", "periódico"),
+    (r"\bretroalimentacion\b", "retroalimentación"),
+    (r"\binclusion\b", "inclusión"),
+    (r"\bautonomia\b", "autonomía"),
 )
 
 
@@ -237,6 +306,7 @@ def normalize_analysis_for_certificate(
     used_vision: bool,
     observations: str | None = None,
 ) -> dict[str, Any]:
+    settings = get_settings()
     active_categories = _normalize_active_categories(payload.get("discapacidades_activas"))
     domain_scores = _safe_domains(payload.get("dominios"))
     domain_levels = classify_domain_levels(domain_scores)
@@ -248,6 +318,13 @@ def normalize_analysis_for_certificate(
     analysis = payload.get("analisis")
     if not isinstance(analysis, dict):
         analysis = {}
+
+    if settings.analysis_debug:
+        logger.info(
+            "[ANALYSIS_DEBUG][analysis_guardrails] normalize_analysis_for_certificate active_categories=%s used_vision=%s",
+            active_categories,
+            used_vision,
+        )
 
     if active_categories == [AUDITIVA]:
         return _normalize_auditiva_only_analysis(
@@ -386,7 +463,7 @@ def _normalize_auditiva_only_analysis(
         recomendaciones = _merge_items(
             recomendaciones,
             (
-                "Planear una participacion gradual, con acompanamiento inicial, instrucciones claras y entorno estructurado.",
+                "Planear una incorporacion gradual con induccion inicial, instrucciones escritas y canales de confirmacion accesibles.",
             ),
             minimum=5,
             maximum=6,
@@ -394,7 +471,7 @@ def _normalize_auditiva_only_analysis(
         relacional = _merge_items(
             relacional,
             (
-                "Participacion en equipo con acuerdos de comunicacion y acompanamiento inicial.",
+                "Participacion en equipo con acuerdos de comunicacion, induccion inicial clara y confirmacion escrita.",
             ),
             minimum=2,
             maximum=3,
@@ -402,7 +479,7 @@ def _normalize_auditiva_only_analysis(
         tareas_no = _merge_items(
             tareas_no,
             (
-                "Actividades grupales complejas o de alta presion social sin apoyos de comunicacion y acompanamiento.",
+                "Actividades grupales o coordinaciones que dependan de instrucciones orales cambiantes sin apoyos de comunicacion accesible.",
             ),
             minimum=4,
             maximum=6,
@@ -430,7 +507,7 @@ def _normalize_auditiva_only_analysis(
         recomendaciones = _merge_items(
             recomendaciones,
             (
-                "Usar instrucciones paso a paso, checklists, recordatorios visuales y supervision inicial cuando la tarea lo requiera.",
+                "Usar instrucciones paso a paso, checklists, recordatorios visuales y verificacion escrita cuando la tarea lo requiera.",
             ),
             minimum=5,
             maximum=6,
@@ -441,7 +518,7 @@ def _normalize_auditiva_only_analysis(
                 {
                     "titulo": "Checklists y pasos visibles",
                     "descripcion": "Disponer checklists, ayudas visuales y recordatorios simples para organizar la secuencia de trabajo.",
-                    "fundamento": "La dificultad cognitiva observada sugiere apoyar memoria de trabajo, secuencia y seguimiento inicial.",
+                    "fundamento": "Los puntajes de desempeno sugieren reforzar secuencia, organizacion y confirmacion escrita sin inferir una discapacidad cognitiva adicional.",
                 },
             ),
             minimum=4,
@@ -450,32 +527,10 @@ def _normalize_auditiva_only_analysis(
         tareas_no = _merge_items(
             tareas_no,
             (
-                "Tareas con alta carga cognitiva simultanea o cambios rapidos de prioridad sin apoyos de organizacion.",
+                "Tareas con multiples instrucciones simultaneas solo verbales o cambios rapidos sin apoyos escritos de organizacion.",
             ),
             minimum=4,
             maximum=6,
-        )
-
-    if _is_domain_level(domain_levels["movilidad"], "dificultad moderada", "dificultad alta", "dificultad muy alta"):
-        recomendaciones = _merge_items(
-            recomendaciones,
-            (
-                "Ajustar desplazamientos, pausas y ergonomia del puesto de acuerdo con la dificultad de movilidad observada.",
-            ),
-            minimum=5,
-            maximum=6,
-        )
-        ajustes = _merge_adjustments(
-            ajustes,
-            (
-                {
-                    "titulo": "Desplazamiento y ergonomia controlados",
-                    "descripcion": "Organizar recorridos cortos, pausas y elementos de trabajo accesibles si la movilidad del certificado lo exige.",
-                    "fundamento": "La movilidad con dificultad moderada o mayor justifica ajustes de desplazamiento y exigencia fisica.",
-                },
-            ),
-            minimum=4,
-            maximum=5,
         )
 
     recomendaciones, ajustes, profile_support_notes = _apply_observation_context(
@@ -503,7 +558,7 @@ def _normalize_auditiva_only_analysis(
     )
     if _is_domain_level(domain_levels["participacion"], "dificultad moderada", "dificultad alta", "dificultad muy alta"):
         profile_parts.append(
-            f"La participacion presenta {domain_levels['participacion']}, por lo que se recomienda incorporacion gradual, apoyos de comunicacion y entornos estructurados."
+            f"La participacion presenta {domain_levels['participacion']}, por lo que se recomienda incorporacion gradual, apoyos de comunicacion y confirmacion escrita de indicaciones relevantes."
         )
     if profile_support_notes:
         profile_parts.extend(profile_support_notes)
@@ -668,11 +723,14 @@ def _inject_domain_guidance(
     auditiva_activa: bool,
 ) -> list[str]:
     injected = list(recomendaciones)
+    auditiva_only = active_categories == [AUDITIVA]
     if _is_domain_level(domain_levels["participacion"], "dificultad moderada", "dificultad alta", "dificultad muy alta"):
         injected = _merge_items(
             injected,
             (
-                "Promover incorporacion gradual, acompanamiento inicial, instrucciones claras y entornos estructurados para sostener la participacion.",
+                "Promover incorporacion gradual, instrucciones claras y apoyos proporcionados segun la participacion observada."
+                if not auditiva_only
+                else "Promover incorporacion gradual con induccion inicial, instrucciones escritas y confirmacion por canales accesibles.",
             ),
             minimum=min(len(injected) + 1, 6),
             maximum=6,
@@ -681,7 +739,9 @@ def _inject_domain_guidance(
         injected = _merge_items(
             injected,
             (
-                "Definir acuerdos de comunicacion, mediacion y canales escritos para la interaccion laboral cotidiana.",
+                "Definir acuerdos de comunicacion, mediacion y canales escritos para la interaccion laboral cotidiana."
+                if not auditiva_only
+                else "Definir acuerdos de comunicacion con instrucciones visuales, confirmacion escrita y canales escritos para la interaccion laboral cotidiana.",
             ),
             minimum=min(len(injected) + 1, 6),
             maximum=6,
@@ -690,7 +750,9 @@ def _inject_domain_guidance(
         injected = _merge_items(
             injected,
             (
-                "Usar instrucciones paso a paso, checklists, recordatorios visuales y supervision inicial para tareas con demanda cognitiva.",
+                "Usar instrucciones paso a paso, checklists, recordatorios visuales y supervision inicial para tareas con demanda cognitiva."
+                if not auditiva_only
+                else "Usar instrucciones paso a paso, checklists, recordatorios visuales y confirmacion escrita para ordenar la ejecucion de tareas.",
             ),
             minimum=min(len(injected) + 1, 6),
             maximum=6,
@@ -724,6 +786,7 @@ def _inject_domain_cautions(
     auditiva_activa: bool,
 ) -> list[str]:
     injected = list(tareas_no)
+    auditiva_only = active_categories == [AUDITIVA]
     if auditiva_activa:
         injected = _merge_items(
             injected,
@@ -735,7 +798,9 @@ def _inject_domain_cautions(
         injected = _merge_items(
             injected,
             (
-                "Actividades grupales complejas o de alta presion social sin apoyos ni acompanamiento.",
+                "Actividades grupales complejas o de alta presion social sin apoyos ni acompanamiento."
+                if not auditiva_only
+                else "Actividades grupales o coordinaciones que dependan de instrucciones orales cambiantes sin apoyos de comunicacion accesible.",
             ),
             minimum=min(len(injected) + 1, 6),
             maximum=6,
@@ -744,7 +809,9 @@ def _inject_domain_cautions(
         injected = _merge_items(
             injected,
             (
-                "Roles con negociacion compleja, atencion a publico conflictivo o interaccion intensa sin mediacion.",
+                "Roles con negociacion compleja, atencion a publico conflictivo o interaccion intensa sin mediacion."
+                if not auditiva_only
+                else "Roles con intercambio oral continuo, negociacion verbal intensa o atencion a publico conflictivo sin respaldos escritos o visuales.",
             ),
             minimum=min(len(injected) + 1, 6),
             maximum=6,
@@ -753,7 +820,9 @@ def _inject_domain_cautions(
         injected = _merge_items(
             injected,
             (
-                "Tareas con alta carga cognitiva, multitarea intensa o decisiones criticas sin apoyos de organizacion.",
+                "Tareas con alta carga cognitiva, multitarea intensa o decisiones criticas sin apoyos de organizacion."
+                if not auditiva_only
+                else "Tareas con multiples instrucciones simultaneas solo verbales o cambios rapidos sin apoyos escritos para organizar prioridades.",
             ),
             minimum=min(len(injected) + 1, 6),
             maximum=6,
@@ -779,6 +848,7 @@ def _inject_domain_adjustments(
     physical_evidence: bool,
 ) -> list[dict[str, str]]:
     injected = list(ajustes)
+    auditiva_only = active_categories == [AUDITIVA]
     if auditiva_activa:
         injected = _merge_adjustments(
             injected,
@@ -797,9 +867,15 @@ def _inject_domain_adjustments(
             injected,
             (
                 {
-                    "titulo": "Acompanamiento inicial y estructuracion",
-                    "descripcion": "Planear una incorporacion gradual con acompanamiento inicial, secuencia estable y referentes claros del equipo.",
-                    "fundamento": "La participacion con dificultad moderada o mayor se beneficia de seguimiento inicial y menor ambiguedad operativa.",
+                    "titulo": "Acompanamiento inicial y estructuracion"
+                    if not auditiva_only
+                    else "Induccion inicial y comunicacion accesible",
+                    "descripcion": "Planear una incorporacion gradual con acompanamiento inicial, secuencia estable y referentes claros del equipo."
+                    if not auditiva_only
+                    else "Planear una induccion inicial con instrucciones escritas, demostracion visual y canales claros para confirmar prioridades y cambios.",
+                    "fundamento": "La participacion con dificultad moderada o mayor se beneficia de seguimiento inicial y menor ambiguedad operativa."
+                    if not auditiva_only
+                    else "La participacion observada sugiere reforzar la comunicacion accesible y la claridad de indicaciones sin inferir una discapacidad adicional.",
                 },
             ),
             minimum=min(len(injected) + 1, 5),
@@ -812,7 +888,9 @@ def _inject_domain_adjustments(
                 {
                     "titulo": "Checklists y recordatorios visuales",
                     "descripcion": "Usar checklists, apoyos visuales y secuencias paso a paso para tareas con varias etapas o validaciones.",
-                    "fundamento": "La dificultad cognitiva observada sugiere apoyar la organizacion y verificacion inicial del trabajo.",
+                    "fundamento": "La dificultad cognitiva observada sugiere apoyar la organizacion y verificacion inicial del trabajo."
+                    if not auditiva_only
+                    else "Los puntajes de desempeno sugieren reforzar organizacion, secuencia y verificacion escrita dentro de una accesibilidad comunicativa auditiva.",
                 },
             ),
             minimum=min(len(injected) + 1, 5),
@@ -1101,6 +1179,10 @@ def _is_invalid_text(
         if _contains_any(normalized, labels):
             return True
 
+    if INTELECTUAL not in active_categories and PSICOSOCIAL not in active_categories:
+        if _contains_any(normalized, _COGNITIVE_PSICOSOCIAL_RESTRICTION_KEYWORDS):
+            return True
+
     return False
 
 
@@ -1155,15 +1237,23 @@ def _is_domain_level(current_level: str, *allowed_levels: str) -> bool:
 def _summarize_affected_domains(domain_scores: dict[str, float], domain_levels: dict[str, str]) -> str:
     parts: list[str] = []
     for key in DOMAIN_ORDER:
-        level = domain_levels[key]
+        level = domain_levels.get(key)
+        score = domain_scores.get(key)
+        if level is None or score is None:
+            continue
         if level == "sin dificultad observada":
             continue
-        parts.append(f"{DOMAIN_LABELS[key]} ({level}, {domain_scores[key]:.2f}%)")
+        label = DOMAIN_LABELS.get(key, key)
+        parts.append(f"{label} ({level}, {score:.2f}%)")
     return ", ".join(parts)
 
 
 def _summarize_preserved_domains(domain_levels: dict[str, str]) -> str:
-    preserved = [DOMAIN_LABELS[key] for key in DOMAIN_ORDER if domain_levels[key] == "sin dificultad observada"]
+    preserved = [
+        DOMAIN_LABELS.get(key, key)
+        for key in DOMAIN_ORDER
+        if domain_levels.get(key) == "sin dificultad observada"
+    ]
     return ", ".join(preserved[:3])
 
 
@@ -1177,15 +1267,16 @@ def _safe_float(value: Any) -> float:
 
 
 def _fix_tildes(text: str) -> str:
-    for pattern, replacement in _TILDE_CORRECTIONS:
-        def _repl(m: re.Match, rep: str = replacement) -> str:
-            word = m.group(0)
-            if word.isupper():
-                return rep.upper()
-            if word[0].isupper():
-                return rep[0].upper() + rep[1:]
-            return rep
-        text = re.sub(pattern, _repl, text, flags=re.IGNORECASE)
+    for corrections in (_TILDE_CORRECTIONS, _TILDE_CORRECTIONS_EXTRA):
+        for pattern, replacement in corrections:
+            def _repl(m: re.Match, rep: str = replacement) -> str:
+                word = m.group(0)
+                if word.isupper():
+                    return rep.upper()
+                if word[0].isupper():
+                    return rep[0].upper() + rep[1:]
+                return rep
+            text = re.sub(pattern, _repl, text, flags=re.IGNORECASE)
     return text
 
 
@@ -1308,11 +1399,212 @@ def _ensure_subtype_prefix(
     return result
 
 
+_AUDITIVA_PARADOX_KEYWORDS: tuple[str, ...] = (
+    "APOYO AUDITIVO",
+    "APOYOS AUDITIVOS",
+    "COMUNICACION ADAPTADA",
+    "ORGANIZACION DE AGENDAS",
+    "APOYO SOCIAL",
+    "APOYO COMUNITARIO",
+)
+
+_CATEGORY_TITLE_PREFIX_RULES: dict[str, tuple[str, ...]] = {
+    MULTIPLE: ("[MULTIPLE", "[DISCAPACIDAD MULTIPLE"),
+    FISICA: ("[FISICA", "[DISCAPACIDAD FISICA"),
+    VISUAL: ("[VISUAL", "[DISCAPACIDAD VISUAL"),
+    PSICOSOCIAL: ("[PSICOSOCIAL", "[DISCAPACIDAD PSICOSOCIAL", "[DISCAPACIDAD MENTAL"),
+    INTELECTUAL: ("[INTELECTUAL", "[DISCAPACIDAD INTELECTUAL", "[DISCAPACIDAD COGNITIVA/INTELECTUAL"),
+}
+
+_CATEGORY_CONTENT_RULES: dict[str, tuple[str, ...]] = {
+    MULTIPLE: ("[MULTIPLE", "DISCAPACIDAD MULTIPLE", "MULTIPLE CON AFECTACION"),
+    FISICA: ("[FISICA", "DISCAPACIDAD FISICA"),
+    VISUAL: ("[VISUAL", "DISCAPACIDAD VISUAL"),
+    PSICOSOCIAL: ("[PSICOSOCIAL", "DISCAPACIDAD PSICOSOCIAL", "DISCAPACIDAD MENTAL"),
+    INTELECTUAL: ("[INTELECTUAL", "DISCAPACIDAD INTELECTUAL", "DISCAPACIDAD COGNITIVA/INTELECTUAL"),
+}
+
+_AUDITIVA_ONLY_FORBIDDEN_PHRASES: tuple[str, ...] = (
+    "[MULTIPLE",
+    "DISCAPACIDAD MULTIPLE",
+    "MULTIPLE CON AFECTACION",
+    "[FISICA",
+    "DISCAPACIDAD FISICA",
+    "MOVILIDAD REDUCIDA",
+    "FACILITAR MOVILIDAD",
+    "SILLA DE RUEDAS",
+    "BASTON",
+    "[VISUAL",
+    "DISCAPACIDAD VISUAL",
+    "ALTO CONTRASTE",
+    "TAMANO DE LETRA",
+    "BAJA VISION",
+    "[PSICOSOCIAL",
+    "APOYO EMOCIONAL",
+    "ESTRES",
+    "FATIGA",
+    "[INTELECTUAL",
+    "ALTA DEMANDA COGNITIVA",
+    "SUPERVISION CONSTANTE",
+    "SUPERVISION PERMANENTE",
+    "ALTA PRESION SOCIAL",
+    "PRESION SOCIAL",
+    "ACOMPANAMIENTO",
+    "ADAPTACION SOCIAL",
+    "AMBIGUEDAD SOCIAL",
+    "MEDIACION DE CONFLICTOS",
+    "NEGOCIACION SOCIAL",
+    "AMBIENTES PREDECIBLES",
+    "MOBILIARIO ERGONOMICO",
+    "RUTAS SIN BARRERAS",
+    "BARRERAS ARQUITECTONICAS",
+    "ESTIMULOS DISTRACTORES",
+    "CONCENTRACION",
+    "MEJORAR CONCENTRACION",
+    "SUPERVISION PROGRESIVA",
+    "ACCESO CERCANO A BANOS",
+    "BANOS Y ESPACIOS DE DESCANSO",
+    "ESPACIOS DE DESCANSO",
+    "PUESTO DE TRABAJO CON ACCESO CERCANO",
+    "SUPERVISION INICIAL Y SEGUIMIENTO PROGRESIVO",
+)
+
+_AUDITIVA_ONLY_REPLACEMENTS: dict[str, str] = {
+    "FACILITAR SUPERVISION INICIAL Y SEGUIMIENTO PROGRESIVO PARA TAREAS ASIGNADAS.": "Realizar inducción inicial con instrucciones escritas, demostración visual y confirmación de comprensión.",
+}
+
+
 def _filter_extra_physical_in_auditiva(items: list[str]) -> list[str]:
     return [
         item for item in items
-        if not _contains_any(normalize_token(item), _EXTRA_PHYSICAL_AUDITIVA_FILTER)
+        if not _contains_any(normalize_token(item), _PHYSICAL_RESTRICTION_KEYWORDS)
     ]
+
+
+def _filter_paradox_auditiva(items: list[str]) -> list[str]:
+    return [
+        item for item in items
+        if not _contains_any(normalize_token(item), _AUDITIVA_PARADOX_KEYWORDS)
+    ]
+
+
+def _is_active_or_allowed_category(category: str, active_categories: list[str]) -> bool:
+    return category in active_categories
+
+
+def _matches_inactive_category_title_prefix(
+    title: str,
+    active_categories: list[str],
+) -> bool:
+    normalized = normalize_token(title)
+    if not normalized.startswith("["):
+        return False
+
+    for category, prefixes in _CATEGORY_TITLE_PREFIX_RULES.items():
+        if _is_active_or_allowed_category(category, active_categories):
+            continue
+        if _contains_any(normalized, prefixes):
+            return True
+    return False
+
+
+def _contains_inactive_category_content(
+    text: str,
+    active_categories: list[str],
+) -> bool:
+    normalized = normalize_token(text)
+    if not normalized:
+        return False
+
+    for category, phrases in _CATEGORY_CONTENT_RULES.items():
+        if _is_active_or_allowed_category(category, active_categories):
+            continue
+        if _contains_any(normalized, phrases):
+            return True
+
+    if active_categories == [AUDITIVA] and _contains_any(normalized, _AUDITIVA_ONLY_FORBIDDEN_PHRASES):
+        return True
+    return False
+
+
+def _sanitize_auditiva_only_text(text: str) -> str:
+    normalized = normalize_token(text)
+    for original_normalized, replacement in _AUDITIVA_ONLY_REPLACEMENTS.items():
+        if normalized == original_normalized:
+            return replacement
+    if "SUPERVISION INICIAL" in normalized and "SEGUIMIENTO PROGRESIVO" in normalized:
+        return "Realizar inducción inicial con instrucciones escritas, demostración visual y confirmación de comprensión."
+    return text
+
+
+def _clean_visible_output_by_active_categories(
+    analysis: dict[str, Any],
+    active_categories: list[str],
+) -> dict[str, Any]:
+    settings = get_settings()
+    tasks = analysis.get("tareas_recomendadas", {})
+    administrativo = list(tasks.get("administrativo_oficina") or [])
+    operativo = list(tasks.get("operativo_manual_liviano") or [])
+    relacional = list(tasks.get("relacional_apoyo") or [])
+    ajustes = list(analysis.get("ajustes_razonables") or [])
+    tareas_no = list(analysis.get("tareas_no_recomendadas") or [])
+    perfil = str(analysis.get("perfil_funcionamiento") or "")
+    recomendaciones = list(analysis.get("recomendaciones_rrhh_sst") or [])
+
+    if settings.analysis_debug:
+        logger.info(
+            "[ANALYSIS_DEBUG][analysis_guardrails] pre_clean active_categories=%s tareas_no=%s recomendaciones=%s",
+            active_categories,
+            tareas_no,
+            recomendaciones,
+        )
+
+    def keep_text(text: str) -> bool:
+        return not _contains_inactive_category_content(text, active_categories)
+
+    def clean_list(items: list[str]) -> list[str]:
+        if active_categories == [AUDITIVA]:
+            items = [_sanitize_auditiva_only_text(str(item or "")) for item in items]
+        return [item for item in items if keep_text(str(item or ""))]
+
+    cleaned_adjustments: list[dict[str, str]] = []
+    for item in ajustes:
+        if not isinstance(item, dict):
+            continue
+        titulo = str(item.get("titulo") or "")
+        descripcion = str(item.get("descripcion") or "")
+        fundamento = str(item.get("fundamento") or "")
+        if _matches_inactive_category_title_prefix(titulo, active_categories):
+            continue
+        if not keep_text(" ".join((titulo, descripcion, fundamento))):
+            continue
+        cleaned_adjustments.append(
+            {
+                "titulo": titulo,
+                "descripcion": descripcion,
+                "fundamento": fundamento,
+            }
+        )
+
+    cleaned = {
+        "tareas_recomendadas": {
+            "administrativo_oficina": clean_list(administrativo),
+            "operativo_manual_liviano": clean_list(operativo),
+            "relacional_apoyo": clean_list(relacional),
+        },
+        "ajustes_razonables": cleaned_adjustments,
+        "tareas_no_recomendadas": clean_list(tareas_no),
+        "perfil_funcionamiento": "" if not keep_text(perfil) else perfil,
+        "recomendaciones_rrhh_sst": clean_list(recomendaciones),
+    }
+    if settings.analysis_debug:
+        logger.info(
+            "[ANALYSIS_DEBUG][analysis_guardrails] post_clean active_categories=%s tareas_no=%s recomendaciones=%s",
+            active_categories,
+            cleaned["tareas_no_recomendadas"],
+            cleaned["recomendaciones_rrhh_sst"],
+        )
+    return cleaned
 
 
 def _normalize_output_quality(
@@ -1370,8 +1662,24 @@ def _normalize_output_quality(
         relacional = _filter_extra_physical_in_auditiva(relacional)
         tareas_no = _filter_extra_physical_in_auditiva(tareas_no)
         recomendaciones = _filter_extra_physical_in_auditiva(recomendaciones)
+        ajustes = [
+            a for a in ajustes
+            if not _contains_any(
+                normalize_token(" ".join(filter(None, (a.get("titulo"), a.get("descripcion"), a.get("fundamento"))))),
+                _PHYSICAL_RESTRICTION_KEYWORDS,
+            )
+            and not _contains_any(
+                normalize_token(a.get("titulo", "")),
+                _AUDITIVA_PARADOX_KEYWORDS,
+            )
+        ]
+        administrativo = _filter_paradox_auditiva(administrativo)
+        operativo = _filter_paradox_auditiva(operativo)
+        relacional = _filter_paradox_auditiva(relacional)
+        tareas_no = _filter_paradox_auditiva(tareas_no)
+        recomendaciones = _filter_paradox_auditiva(recomendaciones)
 
-    return {
+    return _clean_visible_output_by_active_categories({
         "tareas_recomendadas": {
             "administrativo_oficina": administrativo,
             "operativo_manual_liviano": operativo,
@@ -1381,4 +1689,4 @@ def _normalize_output_quality(
         "tareas_no_recomendadas": tareas_no,
         "perfil_funcionamiento": perfil,
         "recomendaciones_rrhh_sst": recomendaciones,
-    }
+    }, active_categories)

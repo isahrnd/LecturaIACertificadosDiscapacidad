@@ -78,7 +78,10 @@ export function AnalysisDashboard({
 
       <section className="grid gap-5 xl:grid-cols-2">
         <RecommendedTasksPanel tasks={analysis.analisis.tareas_recomendadas} />
-        <AdjustmentsPanel adjustments={analysis.analisis.ajustes_razonables} />
+        <AdjustmentsPanel
+          adjustments={analysis.analisis.ajustes_razonables}
+          activeConditions={analysis.discapacidades_activas}
+        />
       </section>
 
       <NotRecommendedPanel items={analysis.analisis.tareas_no_recomendadas} />
