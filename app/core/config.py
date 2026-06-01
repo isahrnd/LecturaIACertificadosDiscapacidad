@@ -18,6 +18,16 @@ def _normalize_origin(value: str) -> str:
     return value.rstrip("/")
 
 
+LOCAL_DEV_CORS_ORIGINS: tuple[str, ...] = (
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+)
+
+
 def _combine_origin_regex(*patterns: str | None) -> Optional[str]:
     cleaned = [pattern.strip() for pattern in patterns if pattern and pattern.strip()]
     if not cleaned:
@@ -41,20 +51,9 @@ class Settings(BaseModel):
     allow_origins: list[str] = Field(
         default_factory=lambda: [
             _normalize_origin(origin)
-            for origin in _split_csv_env(
-                os.getenv(
-                    "ALLOW_ORIGINS",
-                    ",".join(
-                        [
-                            "http://localhost:3000",
-                            "http://127.0.0.1:3000",
-                            "http://localhost:8080",
-                            "http://127.0.0.1:8080",
-                            "http://localhost:5173",
-                            "http://127.0.0.1:5173",
-                        ]
-                    ),
-                )
+            for origin in (
+                list(LOCAL_DEV_CORS_ORIGINS)
+                + _split_csv_env(os.getenv("ALLOW_ORIGINS", ""))
             )
         ]
     )
